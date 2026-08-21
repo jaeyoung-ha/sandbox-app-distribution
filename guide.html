@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>사내 앱 배포 가이드 — CloudFront + Lambda@Edge + Cognito</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="AWS Amplify 앱에 CloudFront + Lambda@Edge + Cognito 인증을 붙이는 콘솔 스텝별 가이드">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.css">
+  <style>
+    /* 라이트 그린/퍼플 디자인 토큰 */
+    :root {
+      --green: #00704a;
+      --green-dark: #1e3932;
+      --green-light: #d4e9e2;
+      --purple: #6b4eff;
+      --purple-light: #efeaff;
+      --ink: #16241f;
+      --muted: #5d6b66;
+      --bg: #f4f7f5;
+      --card: #ffffff;
+      --line: #e2ebe7;
+      --code-bg: #1e3932;
+      --code-ink: #d4e9e2;
+
+      /* docsify-themeable 변수 매핑 */
+      --theme-color: #00704a;
+      --base-background-color: #f4f7f5;
+      --base-color: #16241f;
+      --base-font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
+      --heading-color: #16241f;
+      --link-color: #00704a;
+      --link-color--hover: #6b4eff;
+
+      --sidebar-background: #ffffff;
+      --sidebar-border-color: #e2ebe7;
+      --sidebar-name-color: #16241f;
+      --sidebar-nav-link-color: #5d6b66;
+      --sidebar-nav-link-color--active: #00704a;
+      --sidebar-nav-link-color--hover: #16241f;
+      --sidebar-nav-link-border-color--active: #00704a;
+      --sidebar-nav-strong-color: #6b4eff;
+
+      --search-input-background-color: #ffffff;
+      --search-input-color: #16241f;
+      --search-result-heading-color: #16241f;
+      --search-result-item-color: #5d6b66;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .content,
+    .markdown-section { background: transparent; }
+
+    /* 사이드바 */
+    .sidebar {
+      background: var(--card) !important;
+      border-right: 1px solid var(--line);
+    }
+    .sidebar-nav a { color: var(--muted); }
+    .sidebar-nav a:hover { color: var(--ink); }
+    .sidebar-nav li.active > a {
+      color: var(--green) !important;
+      font-weight: 700;
+      background: var(--green-light);
+      border-left: 3px solid var(--green);
+      border-radius: 0 8px 8px 0;
+      padding-left: 9px;
+    }
+
+    /* 섹션 라벨 */
+    .sidebar-nav > ul > li > p {
+      font-weight: 800;
+      color: var(--purple);
+      text-transform: uppercase;
+      font-size: 0.72em;
+      letter-spacing: 0.06em;
+      margin-top: 1.5em;
+      padding-left: 4px;
+    }
+
+    .app-name-link {
+      font-weight: 800 !important;
+      font-size: 1.05em !important;
+      color: var(--ink) !important;
+    }
+
+    /* 제목 */
+    .markdown-section h1 {
+      color: var(--ink);
+      padding-bottom: 12px;
+      border-bottom: 3px solid;
+      border-image: linear-gradient(90deg, var(--green), var(--purple)) 1;
+      letter-spacing: -0.02em;
+    }
+    .markdown-section h2 {
+      color: var(--ink);
+      margin-top: 2em;
+      letter-spacing: -0.01em;
+    }
+    .markdown-section h3 { color: var(--green-dark); }
+    .markdown-section p,
+    .markdown-section li { color: var(--ink); }
+    .markdown-section strong { color: var(--green-dark); }
+
+    /* 링크 */
+    .markdown-section a {
+      color: var(--link-color);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .markdown-section a:hover {
+      color: var(--link-color--hover);
+      text-decoration: underline;
+    }
+
+    /* 테이블 */
+    .markdown-section table {
+      display: table;
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .markdown-section table td,
+    .markdown-section table th {
+      border: 1px solid var(--line);
+      padding: 10px 14px;
+      color: var(--ink) !important;
+      background: var(--card) !important;
+    }
+    .markdown-section table th {
+      background: var(--green-light) !important;
+      color: var(--green-dark) !important;
+      font-weight: 700;
+    }
+    .markdown-section table tr,
+    .markdown-section table tbody tr:nth-child(2n) {
+      background: transparent !important;
+    }
+    .markdown-section table tbody tr:nth-child(2n) td {
+      background: var(--bg) !important;
+    }
+
+    /* 인용구 / 콜아웃 */
+    .markdown-section blockquote {
+      border-left: 4px solid var(--green);
+      background: var(--green-light);
+      padding: 14px 20px;
+      border-radius: 10px;
+      color: var(--green-dark);
+    }
+    .markdown-section blockquote p { color: var(--green-dark); }
+    .markdown-section blockquote strong { color: var(--green); }
+
+    /* 코드 — 다크 칩 */
+    .markdown-section code {
+      background: var(--code-bg);
+      border-radius: 5px;
+      padding: 2px 7px;
+      color: var(--code-ink);
+      font-size: 0.9em;
+    }
+    .markdown-section pre {
+      background: var(--code-bg) !important;
+      border: 1px solid var(--green-dark);
+      border-radius: 12px;
+      padding: 20px !important;
+    }
+    .markdown-section pre code {
+      background: transparent;
+      color: var(--code-ink);
+    }
+    .docsify-copy-code-button {
+      background: var(--green) !important;
+      color: #fff !important;
+    }
+
+    /* details 토글 */
+    .markdown-section details {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin: 12px 0;
+    }
+    .markdown-section details summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--green-dark);
+    }
+
+    /* 검색창 */
+    .search input {
+      background: var(--card) !important;
+      color: var(--ink) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 8px;
+    }
+    .search input::placeholder { color: var(--muted) !important; opacity: 1; }
+    .search .results-panel,
+    .search .matching-post {
+      background: var(--card);
+      color: var(--muted);
+      border-color: var(--line);
+    }
+    .search p { color: var(--muted) !important; }
+
+    /* 페이지네이션 */
+    .docsify-pagination-container {
+      border-top: 1px solid var(--line);
+      padding-top: 20px;
+    }
+    .pagination-item-label { color: var(--muted); }
+    .pagination-item-title { color: var(--ink); }
+    .pagination-item:hover .pagination-item-title { color: var(--green); }
+
+    /* 가로 구분선 */
+    .markdown-section hr { border: none; border-top: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    window.$docsify = {
+      name: '사내 앱 배포 가이드',
+      nameLink: 'guide.html',
+      repo: '',
+      loadSidebar: 'SUMMARY.md',
+      subMaxLevel: 0,
+      auto2top: true,
+      search: {
+        placeholder: '검색어를 입력하세요...',
+        noData: '결과가 없습니다',
+        depth: 3
+      },
+      copyCode: {
+        buttonText: '복사',
+        successText: '복사됨!'
+      },
+      pagination: {
+        previousText: '← 이전',
+        nextText: '다음 →',
+        crossChapter: true,
+        crossChapterText: true
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/emoji.min.js"></script>
+</body>
+</html>
